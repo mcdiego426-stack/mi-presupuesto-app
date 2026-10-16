@@ -162,6 +162,8 @@ input.amount{font-size:30px;font-weight:800;padding:12px 14px;font-variant-numer
 .primary{width:100%;margin-top:18px;border:0;border-radius:14px;background:var(--brand);color:var(--brand-ink);font-weight:700;font-size:17px;padding:15px;cursor:pointer}
 .primary:disabled{opacity:.5}
 .sheet .primary{position:sticky;bottom:calc(-12px - env(safe-area-inset-bottom));box-shadow:0 0 0 10px var(--card),0 30px 0 10px var(--card)}
+.notch{position:fixed;left:0;right:0;top:0;height:env(safe-area-inset-top);background:var(--bg);z-index:25}
+.tabbar:empty{display:none}
 .toast{position:fixed;left:50%;top:calc(12px + env(safe-area-inset-top));transform:translate(-50%,-160%);background:var(--ink);color:var(--bg);padding:12px 16px;border-radius:12px;z-index:40;transition:transform .25s;max-width:92vw;font-size:14px}
 .toast.show{transform:translate(-50%,0)}
 
@@ -187,6 +189,7 @@ input.amount{font-size:30px;font-weight:800;padding:12px 14px;font-variant-numer
 <div class="sheet-bg" id="sheetBg" onclick="cerrar()"></div>
 <div class="sheet" id="sheet"></div>
 <div class="toast" id="toast"></div>
+<div class="notch"></div>
 
 <script>
 var D = null, TAB = 'hoy', CARGANDO = false;
@@ -349,14 +352,16 @@ function vHoy(){
   // Gusto sin culpa y vales
   h+='<div class="stack" style="margin-top:12px">';
   if(D.gusto){
+    var tarjetasSemana=cards.reduce(function(s,c){return s+(c.est==='bad'?0:c.semana);},0);
     var g=D.gusto, gp=Math.max(0,Math.min(1,g.gastado/g.semana)), ge=g.restante<0?'bad':(gp>=.8?'warn':'ok');
     h+='<div class="strip" style="display:block"><div style="display:flex;justify-content:space-between;gap:8px"><span class="t">🎉 Gustos de la semana</span><span class="v '+(g.restante<0?'neg':'')+'">'+
       (g.restante<0?'Te pasaste '+money0(-g.restante):'Quedan '+money0(g.restante))+'</span></div>'+
-      '<div class="bar '+ge+'"><i style="width:'+(gp*100).toFixed(1)+'%"></i></div><div class="s" style="margin-top:6px">Salidas, antojos y compras · llevas '+money0(g.gastado)+' de '+money0(g.semana)+'</div></div>';
+      '<div class="bar '+ge+'"><i style="width:'+(gp*100).toFixed(1)+'%"></i></div><div class="s" style="margin-top:6px">Salidas, antojos y compras · llevas '+money0(g.gastado)+' de '+money0(g.semana)+'</div>'+
+      (g.restante>tarjetasSemana?'<div class="s" style="margin-top:4px;color:var(--warn);font-weight:600">Ojo: hoy tus tarjetas solo te dejan '+money0(tarjetasSemana)+' esta semana</div>':'')+'</div>';
   }
   if(D.vales){
     var vw=D.vales.dias<D.vales.habiles;
-    h+='<div class="strip"><div class="l"><div class="t">🎟️ Vales · '+money0(D.vales.saldo)+'</div><div class="s '+(vw?'neg':'')+'">Alcanzan para '+D.vales.dias+' de '+D.vales.habiles+' días hábiles</div></div>'+
+    h+='<div class="strip"><div class="l"><div class="t">🎟️ Vales · '+money0(D.vales.saldo)+'</div><div class="s '+(vw?'neg':'')+'">'+(vw?'Alcanzan para '+D.vales.dias+' días · faltan '+D.vales.habiles+' hábiles':'✓ Te alcanzan para todo el mes')+'</div></div>'+
       '<button class="mini" onclick="comedor()">＋ Comedor</button></div>';
   }
   h+='</div>';
