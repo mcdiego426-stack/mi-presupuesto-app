@@ -232,16 +232,54 @@ function pantallaConectar(){
     '<p class="muted small">O pega aquí tu clave:</p><input class="in" id="claveIn" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Clave">'+
     '<button class="primary" onclick="guardarClave()">Conectar</button></div>';
 }
+// ---------- Avisos (notificaciones) ----------
+var PUSH='no'; // no | instalar | apagado | activo | bloqueado
+function idbGuardar(k,v){try{var q=indexedDB.open('presupuesto',1);q.onupgradeneeded=function(){q.result.createObjectStore('kv');};q.onsuccess=function(){var tx=q.result.transaction('kv','readwrite');tx.objectStore('kv').put(v,k);};}catch(e){}}
+function b64aBytes(s){s=s.replace(/-/g,'+').replace(/_/g,'/');var b=atob(s+'===='.slice((s.length%4)||4)),a=new Uint8Array(b.length);for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return a;}
+function revisarPush(){
+  if(EN_GOOGLE) return;
+  var ios=/iPhone|iPad/.test(navigator.userAgent), instalada=window.navigator.standalone||matchMedia('(display-mode: standalone)').matches;
+  if(!('serviceWorker' in navigator)||!('PushManager' in window)||!('Notification' in window)){PUSH=(ios&&!instalada)?'instalar':'no';return;}
+  navigator.serviceWorker.register('sw.js').then(function(reg){return reg.pushManager.getSubscription();}).then(function(sub){
+    PUSH=Notification.permission==='denied'?'bloqueado':(sub&&Notification.permission==='granted'?'activo':'apagado');
+    if(D) pintar();
+  }).catch(function(){PUSH='no';});
+}
+function activarPush(){
+  var b=$('btnPush'); if(b){b.disabled=true;b.textContent='Activando…';}
+  Notification.requestPermission().then(function(p){
+    if(p!=='granted'){PUSH=p==='denied'?'bloqueado':'apagado';pintar();throw new Error('Sin permiso para avisos');}
+    return Promise.all([navigator.serviceWorker.ready,run('clavePushPublica')]);
+  }).then(function(x){
+    return x[0].pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64aBytes(x[1])});
+  }).then(function(sub){
+    idbGuardar('desde',Date.now()-60000);
+    var nombre=/iPhone/.test(navigator.userAgent)?'iPhone':(/Windows|Macintosh/.test(navigator.userAgent)?'Compu':'Aparato');
+    return run('guardarSuscripcion',JSON.parse(JSON.stringify(sub)),nombre);
+  }).then(function(){PUSH='activo';pintar();toast('🔔 Avisos activados. Te llegó uno de prueba.');})
+    .catch(function(e){if(b){b.disabled=false;b.textContent='Activar avisos';}toast(e.message||String(e));});
+}
+function pruebaPush(){run('pushPrueba').then(function(n){toast(n?'Aviso de prueba enviado':'No se pudo enviar. Vuelve a activar los avisos.');}).catch(function(e){toast('Error: '+(e.message||e));});}
+function tarjetaPush(){
+  if(PUSH==='no') return '';
+  var h='<section class="card span2"><h2>🔔 Avisos en este aparato</h2>';
+  if(PUSH==='instalar') h+='<p class="muted" style="margin:0">Para recibir avisos, abre la app desde el ícono de tu pantalla de inicio (no desde Safari).</p>';
+  else if(PUSH==='bloqueado') h+='<p class="muted" style="margin:0">Los avisos están bloqueados. Actívalos en Ajustes → Notificaciones → Presupuesto.</p>';
+  else if(PUSH==='activo') h+='<div class="row" style="padding:0"><div class="l"><div class="t">✓ Activados</div><div class="s">Pagos, pendientes, cortes y recordatorios del mes</div></div><button class="mini ghost" onclick="pruebaPush()">Probar</button></div>';
+  else h+='<p class="muted" style="margin:0 0 10px">Te avisamos de pagos, pendientes y cortes, aunque no abras la app.</p><button class="mini" id="btnPush" onclick="activarPush()">Activar avisos</button>';
+  return h+'</section>';
+}
 function guardarClave(){
   var k=String($('claveIn').value||'').trim().replace(/^.*#k=/,'');
   if(!/^[0-9a-f]{40,}$/i.test(k)){toast('Esa clave no se ve bien');return;}
-  guardaLocal('presupuesto.k',k); D=null; cargar();
+  guardaLocal('presupuesto.k',k); idbGuardar('k',k); D=null; cargar(); revisarPush();
 }
 // La clave llega en el link del código QR (#k=...). Se guarda solo en este aparato.
 (function(){
   var m=location.hash.match(/[#&]k=([0-9a-f]+)/i);
   if(!m) return;
   guardaLocal('presupuesto.k',m[1]);
+  idbGuardar('k',m[1]);
   // En Safari se deja en el link para que "Agregar a pantalla de inicio" la conserve; en la app instalada se limpia.
   if(window.navigator.standalone||matchMedia('(display-mode: standalone)').matches){try{history.replaceState(null,'',location.pathname);}catch(e){}}
 })();
@@ -323,6 +361,8 @@ function vHoy(){
     if(urg.length>2) h+='<button class="link" onclick="irA(\'pend\')">Ver '+(urg.length-2)+' aviso'+(urg.length-2>1?'s':'')+' más ›</button>';
     h+='</div>';
   }
+
+  if(PUSH==='apagado') h+='<div class="strip" style="margin-top:12px"><div class="l"><div class="t">🔔 Activa tus avisos</div><div class="s">Pagos, pendientes y cortes, aunque no abras la app</div></div><button class="mini" id="btnPush" onclick="activarPush()">Activar</button></div>';
 
   // Con qué puedo pagar
   h+='<div class="h2">¿Con qué puedo pagar?</div><div class="pays">';
@@ -443,7 +483,7 @@ function vDinero(){
 
 // ---------- Pendientes ----------
 function vPend(){
-  var h='<div class="grid two">';
+  var h='<div class="grid two">'+tarjetaPush();
   h+='<section class="card"><h2>Avisos</h2>';
   if(!D.avisos.length) h+='<p class="muted">Todo en orden 👌</p>';
   D.avisos.forEach(function(a){h+='<div class="aviso '+a.nivel+'"><span class="dot"></span><span>'+esc(a.texto)+'</span></div>';});
@@ -674,6 +714,7 @@ function guardar(){
 // Arranque: muestra al instante lo último que se vio y actualiza en segundo plano
 (function(){
   if(!EN_GOOGLE&&!clave()){pintarTabs();pantallaConectar();return;}
+  if(!EN_GOOGLE){idbGuardar('k',clave());revisarPush();}
   var c=leeLocal('presupuesto.D');
   if(c){try{c=JSON.parse(c);D=c.d;}catch(e){D=null;}}
   pintar();
