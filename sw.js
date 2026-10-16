@@ -20,8 +20,17 @@ function idb(modo, fn) {
 function leer(k) { return idb('readonly', function (st) { return st.get(k); }); }
 function guardar(k, v) { return idb('readwrite', function (st) { st.put(v, k); }); }
 
+// Los pushes se atienden uno por uno: si llegan dos casi juntos, el segundo ya ve el "desde" nuevo
+// y no vuelve a mostrar los mismos avisos.
+var cola = Promise.resolve();
 self.addEventListener('push', function (e) {
-  e.waitUntil((async function () {
+  var tarea = cola.then(mostrarAvisos);
+  cola = tarea.catch(function () {});
+  e.waitUntil(tarea);
+});
+
+function mostrarAvisos() {
+  return (async function () {
     var avisos = [];
     try {
       var k = await leer('k'), desde = (await leer('desde')) || 0;
@@ -37,8 +46,8 @@ self.addEventListener('push', function (e) {
     await Promise.all(avisos.map(function (a) {
       return self.registration.showNotification(a.titulo, { body: a.cuerpo || '', icon: 'icono-192.png', tag: a.id });
     }));
-  })());
-});
+  })();
+}
 
 self.addEventListener('notificationclick', function (e) {
   e.notification.close();
