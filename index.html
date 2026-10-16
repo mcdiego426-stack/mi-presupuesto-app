@@ -271,6 +271,17 @@ function tarjetaPush(){
   else h+='<p class="muted" style="margin:0 0 10px">Te avisamos de pagos, pendientes y cortes, aunque no abras la app.</p><button class="mini" id="btnPush" onclick="activarPush()">Activar avisos</button>';
   return h+'</section>';
 }
+function copiar(t,msg){
+  (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(function(){toast(msg);})
+    .catch(function(){window.prompt('Copia esto:',t);});
+}
+function tarjetaAtajo(){
+  if(EN_GOOGLE||!clave()) return '';
+  return '<section class="card span2"><h2>📲 Atajo de Apple Pay</h2>'+
+    '<p class="muted" style="margin:0 0 10px">Para que tus pagos con Apple Pay se anoten solos. Copia estos dos datos cuando armes el atajo.</p>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="mini" onclick="copiar(API_URL,\'Dirección copiada ✓\')">Copiar dirección</button>'+
+    '<button class="mini ghost" onclick="copiar(clave(),\'Clave copiada ✓ (no la compartas)\')">Copiar mi clave</button></div></section>';
+}
 function guardarClave(){
   var k=String($('claveIn').value||'').trim().replace(/^.*#k=/,'');
   if(!/^[0-9a-f]{40,}$/i.test(k)){toast('Esa clave no se ve bien');return;}
@@ -485,7 +496,7 @@ function vDinero(){
 
 // ---------- Pendientes ----------
 function vPend(){
-  var h='<div class="grid two">'+tarjetaPush();
+  var h='<div class="grid two">'+tarjetaPush()+tarjetaAtajo();
   h+='<section class="card"><h2>Avisos</h2>';
   if(!D.avisos.length) h+='<p class="muted">Todo en orden 👌</p>';
   D.avisos.forEach(function(a){h+='<div class="aviso '+a.nivel+'"><span class="dot"></span><span>'+esc(a.texto)+'</span></div>';});
