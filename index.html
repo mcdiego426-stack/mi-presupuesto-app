@@ -240,7 +240,9 @@ function revisarPush(){
   if(EN_GOOGLE) return;
   var ios=/iPhone|iPad/.test(navigator.userAgent), instalada=window.navigator.standalone||matchMedia('(display-mode: standalone)').matches;
   if(!('serviceWorker' in navigator)||!('PushManager' in window)||!('Notification' in window)){PUSH=(ios&&!instalada)?'instalar':'no';return;}
-  navigator.serviceWorker.register('sw.js').then(function(reg){return reg.pushManager.getSubscription();}).then(function(sub){
+  // Solo se ofrece si la hoja ya tiene la parte de avisos (si no, la API responde "no permitida").
+  var reg0;
+  run('clavePushPublica').then(function(){return navigator.serviceWorker.register('sw.js');}).then(function(reg){reg0=reg;return reg.pushManager.getSubscription();}).then(function(sub){
     PUSH=Notification.permission==='denied'?'bloqueado':(sub&&Notification.permission==='granted'?'activo':'apagado');
     if(D) pintar();
   }).catch(function(){PUSH='no';});
