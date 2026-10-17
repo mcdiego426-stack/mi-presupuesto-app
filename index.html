@@ -192,6 +192,8 @@ input.amount{font-size:30px;font-weight:800;padding:12px 14px;font-variant-numer
 <div class="notch"></div>
 
 <script>
+// Si algo falla al arrancar, mostrar un mensaje en vez de dejar la pantalla vacía.
+window.onerror=function(msg){var m=document.getElementById('main');if(m&&!m.innerHTML)m.innerHTML='<div class="card"><b>Algo falló al abrir.</b><p class="muted small">'+String(msg).replace(/[<>&]/g,'')+'</p><button class="mini" onclick="location.reload()">Reintentar</button></div>';};
 var D = null, TAB = 'hoy', CARGANDO = false;
 var MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 var MESES_L = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -217,8 +219,10 @@ function run(fn){
   var args=[].slice.call(arguments,1);
   if(EN_GOOGLE) return new Promise(function(ok,ko){google.script.run.withSuccessHandler(ok).withFailureHandler(ko)[fn].apply(null,args);});
   if(!clave()) return Promise.reject(new Error('Falta conectar la app'));
-  return fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({k:clave(),fn:fn,args:args})})
-    .then(function(res){return res.json();})
+  var ctl=window.AbortController?new AbortController():null, t=ctl&&setTimeout(function(){ctl.abort();},fn==='getDashboard'?25000:45000);
+  return fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({k:clave(),fn:fn,args:args}),signal:ctl?ctl.signal:undefined})
+    .catch(function(e){throw new Error(e&&e.name==='AbortError'?'La conexión está lenta':'Sin conexión');})
+    .then(function(res){clearTimeout(t);return res.json();})
     .then(function(r){
       if(r.ok) return r.data;
       if(r.error==='clave'){try{localStorage.removeItem('presupuesto.k');localStorage.removeItem('presupuesto.D');}catch(e){} pantallaConectar();}
@@ -241,8 +245,7 @@ function revisarPush(){
   var ios=/iPhone|iPad/.test(navigator.userAgent), instalada=window.navigator.standalone||matchMedia('(display-mode: standalone)').matches;
   if(!('serviceWorker' in navigator)||!('PushManager' in window)||!('Notification' in window)){PUSH=(ios&&!instalada)?'instalar':'no';return;}
   // Solo se ofrece si la hoja ya tiene la parte de avisos (si no, la API responde "no permitida").
-  var reg0;
-  run('clavePushPublica').then(function(){return navigator.serviceWorker.register('sw.js');}).then(function(reg){reg0=reg;return reg.pushManager.getSubscription();}).then(function(sub){
+  run('clavePushPublica').then(function(){return navigator.serviceWorker.ready;}).then(function(reg){return reg.pushManager.getSubscription();}).then(function(sub){
     PUSH=Notification.permission==='denied'?'bloqueado':(sub&&Notification.permission==='granted'?'activo':'apagado');
     if(D) pintar();
   }).catch(function(){PUSH='no';});
@@ -724,6 +727,8 @@ function guardar(){
   }).catch(function(e){$('btn').disabled=false;$('btn').textContent='Reintentar';toast('Error: '+(e.message||e));});
 }
 
+// Guarda la pantalla en el aparato (abre al instante aunque la red esté lenta)
+if(!EN_GOOGLE&&'serviceWorker' in navigator){try{navigator.serviceWorker.register('sw.js').catch(function(){});}catch(e){}}
 // Arranque: muestra al instante lo último que se vio y actualiza en segundo plano
 (function(){
   if(!EN_GOOGLE&&!clave()){pintarTabs();pantallaConectar();return;}

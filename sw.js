@@ -1,9 +1,34 @@
-// Service worker de Mi Presupuesto: solo recibe avisos (no guarda la app en caché).
-// El push llega vacío; aquí se piden los avisos nuevos a la hoja con la clave guardada en este aparato.
+// Service worker de Mi Presupuesto:
+// - Guarda la pantalla de la app en el aparato para que abra al instante aunque la red esté lenta
+//   (se muestra la copia guardada y se actualiza en segundo plano para la siguiente vez).
+// - Recibe avisos: el push llega vacío; aquí se piden los avisos nuevos a la hoja con la clave del aparato.
 var API_URL = 'https://script.google.com/macros/s/AKfycbzO4KpgedAHfkCy9pDL_Jqidkr0O8jir2CKr_GAs_3_qDaL1uPJb1q0Z8Zmy03zkADvAg/exec';
 
-self.addEventListener('install', function () { self.skipWaiting(); });
+var CACHE = 'presupuesto-app';
+var ARCHIVOS = ['./', 'manifest.webmanifest', 'icono-180.png', 'icono-192.png'];
+
+self.addEventListener('install', function (e) {
+  e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(ARCHIVOS); }).catch(function () {}));
+  self.skipWaiting();
+});
 self.addEventListener('activate', function (e) { e.waitUntil(self.clients.claim()); });
+
+// Solo archivos de la app (mismo sitio). Las llamadas a la hoja de Google siempre van a la red.
+self.addEventListener('fetch', function (e) {
+  var req = e.request, url = new URL(req.url);
+  if (req.method !== 'GET' || url.origin !== self.location.origin) return;
+  var clave = req.mode === 'navigate' ? './' : req;
+  e.respondWith(caches.open(CACHE).then(function (c) {
+    return c.match(clave, { ignoreSearch: true }).then(function (guardada) {
+      var red = fetch(req).then(function (res) {
+        if (res && res.ok) c.put(clave, res.clone());
+        return res;
+      });
+      if (guardada) { e.waitUntil(red.catch(function () {})); return guardada; }
+      return red;
+    });
+  }));
+});
 
 function idb(modo, fn) {
   return new Promise(function (ok, ko) {
