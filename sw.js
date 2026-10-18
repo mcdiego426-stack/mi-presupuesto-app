@@ -20,8 +20,19 @@ self.addEventListener('fetch', function (e) {
   var clave = req.mode === 'navigate' ? './' : req;
   e.respondWith(caches.open(CACHE).then(function (c) {
     return c.match(clave, { ignoreSearch: true }).then(function (guardada) {
-      var red = fetch(req).then(function (res) {
-        if (res && res.ok) c.put(clave, res.clone());
+      // no-cache: siempre pregunta a GitHub si hay versión nueva (no usa la copia de 10 min del navegador)
+      var red = fetch(req, { cache: 'no-cache' }).then(function (res) {
+        if (res && res.ok) {
+          c.put(clave, res.clone());
+          // Si la pantalla cambió, avisa a la app para que se recargue con la versión nueva
+          if (guardada && req.mode === 'navigate') {
+            Promise.all([guardada.clone().text(), res.clone().text()]).then(function (t) {
+              if (t[0] !== t[1]) self.clients.matchAll({ type: 'window' }).then(function (cs) {
+                cs.forEach(function (cl) { cl.postMessage('nueva-version'); });
+              });
+            });
+          }
+        }
         return res;
       });
       if (guardada) { e.waitUntil(red.catch(function () {})); return guardada; }

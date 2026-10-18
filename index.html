@@ -729,7 +729,15 @@ function guardar(){
 }
 
 // Guarda la pantalla en el aparato (abre al instante aunque la red esté lenta)
-if(!EN_GOOGLE&&'serviceWorker' in navigator){try{navigator.serviceWorker.register('sw.js').catch(function(){});}catch(e){}}
+if(!EN_GOOGLE&&'serviceWorker' in navigator){try{
+  navigator.serviceWorker.register('sw.js').catch(function(){});
+  // Hay versión nueva de la pantalla: recargar (si no estás a media captura)
+  navigator.serviceWorker.addEventListener('message',function(e){
+    if(e.data!=='nueva-version')return;
+    if($('sheet').classList.contains('open'))toast('Hay una versión nueva: se aplica al cerrar y abrir la app');
+    else location.reload();
+  });
+}catch(e){}}
 // Arranque: muestra al instante lo último que se vio y actualiza en segundo plano
 (function(){
   if(!EN_GOOGLE&&!clave()){pintarTabs();pantallaConectar();return;}
