@@ -643,10 +643,11 @@ function formPago(){
 function formSaldos(){
   var h=cab('🔄 Actualizar saldos')+'<div class="muted small">Pon lo que te dice cada app hoy. Deja igual lo que no cambió.</div>';
   h+='<h3 style="font-size:15px;margin:16px 0 0">💳 Lo que debes en cada tarjeta</h3>'+
-    '<div class="muted small">Didi: límite ($32,000) − "Crédito disponible" · Plata: "Saldo total". Si no coincide, la app agrega un ajuste.</div>';
-  D.limites.map(function(l){return l.tarjeta;}).filter(function(t){return D.usadoTarjetas&&t in D.usadoTarjetas;}).forEach(function(t){
+    '<div class="muted small">Pon todo lo que debes hoy según la app de cada banco. Si no coincide, la app agrega un ajuste.</div>';
+  var ayuda={'Didi':'Límite ($32,000) − "Crédito disponible"','Plata':'"Saldo total"'};
+  (D.listas.tarjetas||[]).filter(function(t){return D.usadoTarjetas&&t in D.usadoTarjetas;}).forEach(function(t){
     var v=D.usadoTarjetas[t];
-    h+='<label class="f">'+esc(t)+'</label><input class="in" type="text" inputmode="decimal" data-tarjeta="'+esc(t)+'" data-orig="'+v+'" value="'+v+'">';
+    h+='<label class="f">'+esc(t)+' · <span class="small">'+esc(ayuda[t]||'Saldo total (lo del corte + compras después del corte)')+'</span></label><input class="in" type="text" inputmode="decimal" data-tarjeta="'+esc(t)+'" data-orig="'+v+'" value="'+v+'">';
   });
   h+='<h3 style="font-size:15px;margin:16px 0 0">🏦 Cuentas e inversiones</h3>';
   D.patrimonio.cuentas.forEach(function(c){
